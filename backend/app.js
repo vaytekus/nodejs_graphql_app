@@ -5,6 +5,9 @@ const mongoose = require('mongoose');
 const path = require('path');
 require('dotenv').config();
 const multer = require('multer');
+const { graphqlHTTP } = require('express-graphql');
+const schema = require('./graphql/schema');
+const resolvers = require('./graphql/resolvers');
 
 const app = express();
 
@@ -37,11 +40,28 @@ app.use('/images', express.static(path.join(__dirname, 'images')));
 const frontendOrigin = process.env.FRONTEND_ORIGIN || 'http://localhost:3000';
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', frontendOrigin);
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
+
+  if(req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
   next();
 });
+
+app.use('/graphql', graphqlHTTP({
+  schema: schema,
+  rootValue: resolvers,
+  graphiql: true,
+  formatError: (error) => {
+    return {
+      message: error.message,
+      status: error.extensions.code,
+      data: error.extensions.data
+    };
+  }
+}));
 
 // error handling middleware
 app.use((error, req, res, next) => {
