@@ -59,40 +59,38 @@ class App extends Component {
   loginHandler = (event, authData) => {
     event.preventDefault();
     this.setState({ authLoading: true });
-    fetch('http://localhost:8080/auth/login', {
+    fetch('http://localhost:8080/graphql', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        email: authData.email,
-        password: authData.password
+        query: `
+          query {
+            login(email: "${authData.email}", password: "${authData.password}") {
+              token
+              userId
+            }
+          }
+        `
       })
     })
       .then(res => {
-        if (res.status === 422) {
-          throw new Error('Validation failed.');
-        }
-        if (res.status !== 200 && res.status !== 201) {
-          console.log('Error!');
-          throw new Error('Could not authenticate you!');
-        }
         return res.json();
       })
       .then(resData => {
+        if (resData.errors && resData.errors.length > 0) {
+          const error = new Error(resData.errors[0].message || 'Login failed.');
+          throw error;
+        }
         console.log(resData);
-        this.setState({
-          isAuth: true,
-          token: resData.token,
-          authLoading: false,
-          userId: resData.userId
-        });
-        localStorage.setItem('token', resData.token);
-        localStorage.setItem('userId', resData.userId);
+        const token = resData.data.login.token;
+        const userId = resData.data.login.userId;
+        this.setState({ isAuth: true, token: token, userId: userId, authLoading: false });
+        localStorage.setItem('token', token);
+        localStorage.setItem('userId', userId);
         const remainingMilliseconds = 60 * 60 * 1000;
-        const expiryDate = new Date(
-          new Date().getTime() + remainingMilliseconds
-        );
+        const expiryDate = new Date(new Date().getTime() + remainingMilliseconds);
         localStorage.setItem('expiryDate', expiryDate.toISOString());
         this.setAutoLogout(remainingMilliseconds);
       })
@@ -118,7 +116,7 @@ class App extends Component {
         }
       }
     `;
-    
+
     fetch('http://localhost:8080/graphql', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

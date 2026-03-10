@@ -2,6 +2,11 @@ const jwt = require('jsonwebtoken');
 
 module.exports = (req, res, next) => {
   const authHeader = req.get('Authorization');
+
+  if(!authHeader) {
+    req.isAuth = false;
+    return next();
+  }
   // Token can come from Authorization header or from httpOnly cookie
   const token = authHeader
     ? authHeader.split(' ')[1]
@@ -16,14 +21,14 @@ module.exports = (req, res, next) => {
   try {
     decodedToken = jwt.verify(token, process.env.JWT_SECRET);
   } catch(err) {
-    err.statusCode = 500;
-    throw err;
+    req.isAuth = false;
+    return next();
   }
   if(!decodedToken) {
-    const error = new Error('Not authenticated.');
-    error.statusCode = 401;
-    throw error;
+    req.isAuth = false;
+    return next();
   }
   req.userId = decodedToken.userId;
+  req.isAuth = true;
   next();
 }

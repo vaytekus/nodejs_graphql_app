@@ -8,7 +8,8 @@ const multer = require('multer');
 const { graphqlHTTP } = require('express-graphql');
 const schema = require('./graphql/schema');
 const resolvers = require('./graphql/resolvers');
-
+const auth = require('./middleware/auth');
+const clearImage = require('./utils/file');
 const app = express();
 
 const MONGODB_URI = process.env.MONGODB_URI;
@@ -50,15 +51,35 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use(auth);
+
+app.put('/post-image', (req, res, next) => {  
+  if(!req.isAuth) {
+    const error = new Error('Unauthenticated.');
+    error.statusCode = 401;
+    throw error;
+  }
+  if(!req.file) {
+    const error = new Error('No image provided.');
+    error.statusCode = 422;
+    throw error;
+  }
+  if(req.body.oldPath) {
+    clearImage(req.body.oldPath);
+  }
+  const imageUrl = req.file.path;
+  res.status(200).json({ message: 'Image uploaded successfully.', image: imageUrl });
+});
+
 app.use('/graphql', graphqlHTTP({
   schema: schema,
   rootValue: resolvers,
   graphiql: true,
-  formatError: (error) => {
+  customFormatErrorFn: (error) => {
     return {
       message: error.message,
-      status: error.extensions.code,
-      data: error.extensions.data
+      status: error.extensions?.code,
+      data: error.extensions?.data
     };
   }
 }));
